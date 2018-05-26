@@ -1,0 +1,31 @@
+<assembly
+	xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+	<id>${white.version}</id>
+	<formats>
+		<format>tar.gz</format>
+	</formats>
+	<includeBaseDirectory>false</includeBaseDirectory>
+	<fileSets>
+		<fileSet>
+			<includes>
+				<include>bin/**</include>
+				<include>conf/**</include>
+				<include>logs/**</include>
+			</includes>
+			<excludes>
+				<exclude>**/src/**</exclude>
+				<exclude>**/target/**</exclude>
+				<exclude>**/.*/**</exclude>
+			</excludes>
+		</fileSet>
+        <fileSet>  
+            <directory>white-utils/${project.build.directory}</directory>  
+            <outputDirectory>lib</outputDirectory>
+            <includes>
+            	<include>*.jar</include>
+            </includes>
+        </fileSet>
+    </fileSets>  
+</assembly>
