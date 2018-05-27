@@ -2,6 +2,7 @@
 Desktop.ini
 /.metadata/
 /RemoteSystemsTempFiles/
+/target/
 /*/target/
 /*/.settings/
 /*/*.project
