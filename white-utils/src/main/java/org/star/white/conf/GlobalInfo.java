@@ -156,4 +156,8 @@ public class GlobalInfo {
 		}
 		return Double.parseDouble(properties.getProperty(key, defaultValue + ""));
 	}
+	
+	public static String getCurrentPath() {
+		return new File("").getAbsolutePath();
+	}
 }

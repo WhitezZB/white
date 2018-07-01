@@ -407,7 +407,8 @@ public final class Lucene50PostingsFormat extends PostingsFormat {
    *  maxBlockSize} passed to block terms dictionary.
    *  @see BlockTreeTermsWriter#BlockTreeTermsWriter(SegmentWriteState,PostingsWriterBase,int,int) */
   public Lucene50PostingsFormat(int minTermBlockSize, int maxTermBlockSize) {
-    super("Lucene50");
+    //super("Lucene50");
+    super( CodecUtil.name + "50");
     BlockTreeTermsWriter.validateSettings(minTermBlockSize, maxTermBlockSize);
     this.minTermBlockSize = minTermBlockSize;
     this.maxTermBlockSize = maxTermBlockSize;

@@ -19,6 +19,7 @@ package org.apache.lucene.codecs.lucene70;
 
 import java.io.IOException;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
@@ -119,7 +120,8 @@ public final class Lucene70DocValuesFormat extends DocValuesFormat {
 
   /** Sole Constructor */
   public Lucene70DocValuesFormat() {
-    super("Lucene70");
+    //super("Lucene70");
+    super(CodecUtil.name + "70");
   }
 
   @Override

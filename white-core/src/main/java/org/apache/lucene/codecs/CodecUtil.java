@@ -45,6 +45,8 @@ import org.apache.lucene.util.StringHelper;
 
 public final class CodecUtil {
   private CodecUtil() {} // no instance
+  
+  public final static String name = "White";
 
   /**
    * Constant to identify the start of a codec header.

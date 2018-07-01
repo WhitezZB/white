@@ -19,6 +19,7 @@ package org.apache.lucene.codecs.lucene70;
 import java.util.Objects;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
@@ -88,7 +89,8 @@ public class Lucene70Codec extends Codec {
    *             flushed/merged segments.
    */
   public Lucene70Codec(Mode mode) {
-    super("Lucene70");
+    //super("Lucene70");
+    super(CodecUtil.name + "70");
     this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Objects.requireNonNull(mode));
   }
   
@@ -163,9 +165,11 @@ public class Lucene70Codec extends Codec {
     return docValuesFormat;
   }
 
-  private final PostingsFormat defaultFormat = PostingsFormat.forName("Lucene50");
-  private final DocValuesFormat defaultDVFormat = DocValuesFormat.forName("Lucene70");
-
+  private final PostingsFormat defaultFormat = PostingsFormat.forName(CodecUtil.name + "50");  
+  //private final PostingsFormat defaultFormat = PostingsFormat.forName("Lucene50");
+  //private final DocValuesFormat defaultDVFormat = DocValuesFormat.forName("Lucene70");
+  private final DocValuesFormat defaultDVFormat = DocValuesFormat.forName(CodecUtil.name + "70");
+  
   private final NormsFormat normsFormat = new Lucene70NormsFormat();
 
   @Override
