@@ -1,2 +1,2 @@
 # white
-create by kaynewu(whitezZb)
+create by whitezZB
