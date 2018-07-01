@@ -1,4 +1,5 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" ?>
+
 <!--
  Licensed to the Apache Software Foundation (ASF) under one or more
  contributor license agreements.  See the NOTICE file distributed with
@@ -16,49 +17,9 @@
  limitations under the License.
 -->
 
-<!--
- This is a DEMO configuration, highlighting elements
- specifically needed to get this example running
- such as libraries and request handler specifics.
+<!-- Minimal solrconfig.xml with /select, /admin and /update only -->
 
- It uses defaults or does not define most of production-level settings
- such as various caches or auto-commit policies.
-
- See Solr Reference Guide and other examples for
- more details on a well configured solrconfig.xml
- https://lucene.apache.org/solr/guide/the-well-configured-solr-instance.html
--->
 <config>
-
-  <!-- Controls what version of Lucene various components of Solr
-    adhere to.  Generally, you want to use the latest version to
-    get all bug fixes and improvements. It is highly recommended
-    that you fully re-index after changing this setting as it can
-    affect both how text is indexed and queried.
-  -->
-  <luceneMatchVersion>7.3.1</luceneMatchVersion>
-
-  <lib dir="${solr.install.dir:../../../..}/dist/" regex="solr-dataimporthandler-.*\.jar"/>
-
-  <requestHandler name="/select" class="solr.SearchHandler">
-    <lst name="defaults">
-      <str name="echoParams">explicit</str>
-      <str name="df">text</str>
-       <!-- Change from JSON to XML format (the default prior to Solr 7.0)
-          <str name="wt">xml</str> 
-         -->
-    </lst>
-  </requestHandler>
-
-  <requestHandler name="/dataimport" class="solr.DataImportHandler">
-    <lst name="defaults">
-      <str name="config">atom-data-config.xml</str>
-      <str name="processor">trim_text</str>
-    </lst>
-  </requestHandler>
-
-  <updateProcessor class="solr.processor.TrimFieldUpdateProcessorFactory" name="trim_text">
-    <str name="typeName">text_en_splitting</str>
-  </updateProcessor>
-
+ <luceneMatchVersion>LATEST</luceneMatchVersion>
 </config>
+
