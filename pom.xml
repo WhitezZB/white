@@ -16,6 +16,8 @@
 
 	<modules>
         <module>white-utils</module>
+		<module>white-core</module>
+    <module>whilte-index</module>
   </modules>
 
 	<build>
