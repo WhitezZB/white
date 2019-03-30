@@ -31,23 +31,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.DirectoryReader; // javadocs
-import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
-import org.apache.lucene.index.IndexWriter; // javadocs
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.store.NIOFSDirectory;    // javadoc
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ThreadInterruptedException;
 
 /** Implements search over a single IndexReader.
@@ -66,7 +63,19 @@ import org.apache.lucene.util.ThreadInterruptedException;
  * reader ({@link DirectoryReader#open(IndexWriter)}).
  * Once you have a new {@link IndexReader}, it's relatively
  * cheap to create a new IndexSearcher from it.
- * 
+ *
+ * <p><b>NOTE</b>: The {@link #search} and {@link #searchAfter} methods are
+ * configured to only count top hits accurately up to {@code 1,000} and may
+ * return a {@link TotalHits.Relation lower bound} of the hit count if the
+ * hit count is greater than or equal to {@code 1,000}. On queries that match
+ * lots of documents, counting the number of hits may take much longer than
+ * computing the top hits so this trade-off allows to get some minimal
+ * information about the hit count without slowing down search too much. The
+ * {@link TopDocs#scoreDocs} array is always accurate however. If this behavior
+ * doesn't suit your needs, you should create collectors manually with either
+ * {@link TopScoreDocCollector#create} or {@link TopFieldCollector#create} and
+ * call {@link #search(Query, Collector)}.
+ *
  * <a name="thread-safety"></a><p><b>NOTE</b>: <code>{@link
  * IndexSearcher}</code> instances are completely
  * thread safe, meaning multiple threads can call any of its
@@ -77,44 +86,6 @@ import org.apache.lucene.util.ThreadInterruptedException;
  */
 public class IndexSearcher {
 
-  /** A search-time {@link Similarity} that does not make use of scoring factors
-   *  and may be used when scores are not needed. */
-  private static final Similarity NON_SCORING_SIMILARITY = new Similarity() {
-
-    @Override
-    public long computeNorm(FieldInvertState state) {
-      throw new UnsupportedOperationException("This Similarity may only be used for searching, not indexing");
-    }
-
-    @Override
-    public SimWeight computeWeight(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
-      return new SimWeight() {};
-    }
-
-    @Override
-    public SimScorer simScorer(SimWeight weight, LeafReaderContext context) throws IOException {
-      return new SimScorer() {
-
-        @Override
-        public float score(int doc, float freq) {
-          return 0f;
-        }
-
-        @Override
-        public float computeSlopFactor(int distance) {
-          return 1f;
-        }
-
-        @Override
-        public float computePayloadFactor(int doc, int start, int end, BytesRef payload) {
-          return 1f;
-        }
-
-      };
-    }
-
-  };
-
   private static QueryCache DEFAULT_QUERY_CACHE;
   private static QueryCachingPolicy DEFAULT_CACHING_POLICY = new UsageTrackingQueryCachingPolicy();
   static {
@@ -123,6 +94,11 @@ public class IndexSearcher {
     final long maxRamBytesUsed = Math.min(1L << 25, Runtime.getRuntime().maxMemory() / 20);
     DEFAULT_QUERY_CACHE = new LRUQueryCache(maxCachedQueries, maxRamBytesUsed);
   }
+  /**
+   * By default we count hits accurately up to 1000. This makes sure that we
+   * don't spend most time on computing hit counts
+   */
+  private static final int TOTAL_HITS_THRESHOLD = 1000;
 
   final IndexReader reader; // package private for testing!
   
@@ -131,7 +107,7 @@ public class IndexSearcher {
   protected final IndexReaderContext readerContext;
   protected final List<LeafReaderContext> leafContexts;
   /** used with executor - each slice holds a set of leafs executed within one thread */
-  protected final LeafSlice[] leafSlices;
+  private final LeafSlice[] leafSlices;
 
   // These are only used for multi-threaded search
   private final ExecutorService executor;
@@ -146,7 +122,7 @@ public class IndexSearcher {
    * Expert: returns a default Similarity instance.
    * In general, this method is only called to initialize searchers and writers.
    * User code and query implementations should respect
-   * {@link IndexSearcher#getSimilarity(boolean)}.
+   * {@link IndexSearcher#getSimilarity()}.
    * @lucene.internal
    */
   public static Similarity getDefaultSimilarity() {
@@ -339,15 +315,11 @@ public class IndexSearcher {
     this.similarity = similarity;
   }
 
-  /** Expert: Get the {@link Similarity} to use to compute scores. When
-   *  {@code needsScores} is {@code false}, this method will return a simple
-   *  {@link Similarity} that does not leverage scoring factors such as norms.
-   *  When {@code needsScores} is {@code true}, this returns the
+  /** Expert: Get the {@link Similarity} to use to compute scores. This returns the
    *  {@link Similarity} that has been set through {@link #setSimilarity(Similarity)}
-   *  or the {@link #getDefaultSimilarity()} default {@link Similarity} if none
-   *  has been set explicitly. */
-  public Similarity getSimilarity(boolean needsScores) {
-    return needsScores ? similarity : NON_SCORING_SIMILARITY;
+   *  or the default {@link Similarity} if none has been set explicitly. */
+  public Similarity getSimilarity() {
+    return similarity;
   }
 
   /**
@@ -397,6 +369,14 @@ public class IndexSearcher {
     return search(query, collectorManager);
   }
 
+  /** Returns the leaf slices used for concurrent searching, or null if no {@code ExecutorService} was
+   *  passed to the constructor.
+   *
+   * @lucene.experimental */
+  public LeafSlice[] getSlices() {
+      return leafSlices;
+  }
+  
   /** Finds the top <code>n</code>
    * hits for <code>query</code> where all results are after a previous 
    * result (<code>after</code>).
@@ -421,7 +401,7 @@ public class IndexSearcher {
 
       @Override
       public TopScoreDocCollector newCollector() throws IOException {
-        return TopScoreDocCollector.create(cappedNumHits, after);
+        return TopScoreDocCollector.create(cappedNumHits, after, TOTAL_HITS_THRESHOLD);
       }
 
       @Override
@@ -459,7 +439,8 @@ public class IndexSearcher {
    */
   public void search(Query query, Collector results)
     throws IOException {
-    search(leafContexts, createNormalizedWeight(query, results.needsScores()), results);
+    query = rewrite(query);
+    search(leafContexts, createWeight(query, results.scoreMode(), 1), results);
   }
 
   /** Search implementation with arbitrary sorting, plus
@@ -477,8 +458,8 @@ public class IndexSearcher {
    *         {@link BooleanQuery#getMaxClauseCount()} clauses.
    */
   public TopFieldDocs search(Query query, int n,
-      Sort sort, boolean doDocScores, boolean doMaxScore) throws IOException {
-    return searchAfter(null, query, n, sort, doDocScores, doMaxScore);
+      Sort sort, boolean doDocScores) throws IOException {
+    return searchAfter(null, query, n, sort, doDocScores);
   }
 
   /**
@@ -490,7 +471,7 @@ public class IndexSearcher {
    * @throws IOException if there is a low-level I/O error
    */
   public TopFieldDocs search(Query query, int n, Sort sort) throws IOException {
-    return searchAfter(null, query, n, sort, false, false);
+    return searchAfter(null, query, n, sort, false);
   }
 
   /** Finds the top <code>n</code>
@@ -505,7 +486,7 @@ public class IndexSearcher {
    *         {@link BooleanQuery#getMaxClauseCount()} clauses.
    */
   public TopDocs searchAfter(ScoreDoc after, Query query, int n, Sort sort) throws IOException {
-    return searchAfter(after, query, n, sort, false, false);
+    return searchAfter(after, query, n, sort, false);
   }
 
   /** Finds the top <code>n</code>
@@ -525,17 +506,17 @@ public class IndexSearcher {
    *         {@link BooleanQuery#getMaxClauseCount()} clauses.
    */
   public TopFieldDocs searchAfter(ScoreDoc after, Query query, int numHits, Sort sort,
-      boolean doDocScores, boolean doMaxScore) throws IOException {
+      boolean doDocScores) throws IOException {
     if (after != null && !(after instanceof FieldDoc)) {
       // TODO: if we fix type safety of TopFieldDocs we can
       // remove this
       throw new IllegalArgumentException("after must be a FieldDoc; got " + after);
     }
-    return searchAfter((FieldDoc) after, query, numHits, sort, doDocScores, doMaxScore);
+    return searchAfter((FieldDoc) after, query, numHits, sort, doDocScores);
   }
 
   private TopFieldDocs searchAfter(FieldDoc after, Query query, int numHits, Sort sort,
-      boolean doDocScores, boolean doMaxScore) throws IOException {
+      boolean doDocScores) throws IOException {
     final int limit = Math.max(1, reader.maxDoc());
     if (after != null && after.doc >= limit) {
       throw new IllegalArgumentException("after.doc exceeds the number of documents in the reader: after.doc="
@@ -548,9 +529,8 @@ public class IndexSearcher {
 
       @Override
       public TopFieldCollector newCollector() throws IOException {
-        final boolean fillFields = true;
         // TODO: don't pay the price for accurate hit counts by default
-        return TopFieldCollector.create(rewrittenSort, cappedNumHits, after, fillFields, doDocScores, doMaxScore, true);
+        return TopFieldCollector.create(rewrittenSort, cappedNumHits, after, TOTAL_HITS_THRESHOLD);
       }
 
       @Override
@@ -565,7 +545,11 @@ public class IndexSearcher {
 
     };
 
-    return search(query, manager);
+    TopFieldDocs topDocs = search(query, manager);
+    if (doDocScores) {
+      TopFieldCollector.populateScores(topDocs.scoreDocs, this, query);
+    }
+    return topDocs;
   }
 
  /**
@@ -584,14 +568,22 @@ public class IndexSearcher {
       return collectorManager.reduce(Collections.singletonList(collector));
     } else {
       final List<C> collectors = new ArrayList<>(leafSlices.length);
-      boolean needsScores = false;
+      ScoreMode scoreMode = null;
       for (int i = 0; i < leafSlices.length; ++i) {
         final C collector = collectorManager.newCollector();
         collectors.add(collector);
-        needsScores |= collector.needsScores();
+        if (scoreMode == null) {
+          scoreMode = collector.scoreMode();
+        } else if (scoreMode != collector.scoreMode()) {
+          throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
+        }
       }
-
-      final Weight weight = createNormalizedWeight(query, needsScores);
+      if (scoreMode == null) {
+        // no segments
+        scoreMode = ScoreMode.COMPLETE;
+      }
+      query = rewrite(query);
+      final Weight weight = createWeight(query, scoreMode, 1);
       final List<Future<C>> topDocsFutures = new ArrayList<>(leafSlices.length);
       for (int i = 0; i < leafSlices.length; ++i) {
         final LeafReaderContext[] leaves = leafSlices[i].leaves;
@@ -688,7 +680,8 @@ public class IndexSearcher {
    * entire index.
    */
   public Explanation explain(Query query, int doc) throws IOException {
-    return explain(createNormalizedWeight(query, true), doc);
+    query = rewrite(query);
+    return explain(createWeight(query, ScoreMode.COMPLETE, 1), doc);
   }
 
   /** Expert: low-level implementation method
@@ -715,26 +708,14 @@ public class IndexSearcher {
   }
 
   /**
-   * Creates a normalized weight for a top-level {@link Query}.
-   * The query is rewritten by this method and {@link Query#createWeight} called,
-   * afterwards the {@link Weight} is normalized. The returned {@code Weight}
-   * can then directly be used to get a {@link Scorer}.
-   * @lucene.internal
-   */
-  public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
-    query = rewrite(query);
-    return createWeight(query, needsScores, 1f);
-  }
-
-  /**
    * Creates a {@link Weight} for the given query, potentially adding caching
    * if possible and configured.
    * @lucene.experimental
    */
-  public Weight createWeight(Query query, boolean needsScores, float boost) throws IOException {
+  public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
     final QueryCache queryCache = this.queryCache;
-    Weight weight = query.createWeight(this, needsScores, boost);
-    if (needsScores == false && queryCache != null) {
+    Weight weight = query.createWeight(this, scoreMode, boost);
+    if (scoreMode.needsScores() == false && queryCache != null) {
       weight = queryCache.doCache(weight, queryCachingPolicy);
     }
     return weight;
@@ -756,7 +737,11 @@ public class IndexSearcher {
    * @lucene.experimental
    */
   public static class LeafSlice {
-    final LeafReaderContext[] leaves;
+
+    /** The leaves that make up this slice.
+     *
+     *  @lucene.experimental */
+    public final LeafReaderContext[] leaves;
     
     public LeafSlice(LeafReaderContext... leaves) {
       this.leaves = leaves;
@@ -769,41 +754,46 @@ public class IndexSearcher {
   }
   
   /**
-   * Returns {@link TermStatistics} for a term.
+   * Returns {@link TermStatistics} for a term, or {@code null} if
+   * the term does not exist.
    * 
    * This can be overridden for example, to return a term's statistics
    * across a distributed collection.
    * @lucene.experimental
    */
-  public TermStatistics termStatistics(Term term, TermContext context) throws IOException {
-    return new TermStatistics(term.bytes(), context.docFreq(), context.totalTermFreq());
+  public TermStatistics termStatistics(Term term, TermStates context) throws IOException {
+    if (context.docFreq() == 0) {
+      return null;
+    } else {
+      return new TermStatistics(term.bytes(), context.docFreq(), context.totalTermFreq());
+    }
   }
   
   /**
-   * Returns {@link CollectionStatistics} for a field.
+   * Returns {@link CollectionStatistics} for a field, or {@code null} if
+   * the field does not exist (has no indexed terms)
    * 
    * This can be overridden for example, to return a field's statistics
    * across a distributed collection.
    * @lucene.experimental
    */
   public CollectionStatistics collectionStatistics(String field) throws IOException {
-    final int docCount;
-    final long sumTotalTermFreq;
-    final long sumDocFreq;
-
     assert field != null;
-    
-    Terms terms = MultiFields.getTerms(reader, field);
-    if (terms == null) {
-      docCount = 0;
-      sumTotalTermFreq = 0;
-      sumDocFreq = 0;
-    } else {
-      docCount = terms.getDocCount();
-      sumTotalTermFreq = terms.getSumTotalTermFreq();
-      sumDocFreq = terms.getSumDocFreq();
+    long docCount = 0;
+    long sumTotalTermFreq = 0;
+    long sumDocFreq = 0;
+    for (LeafReaderContext leaf : reader.leaves()) {
+      final Terms terms = leaf.reader().terms(field);
+      if (terms == null) {
+        continue;
+      }
+      docCount += terms.getDocCount();
+      sumTotalTermFreq += terms.getSumTotalTermFreq();
+      sumDocFreq += terms.getSumDocFreq();
     }
-
+    if (docCount == 0) {
+      return null;
+    }
     return new CollectionStatistics(field, reader.maxDoc(), docCount, sumTotalTermFreq, sumDocFreq);
   }
 }

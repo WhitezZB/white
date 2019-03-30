@@ -384,7 +384,8 @@ public final class Lucene50PostingsFormat extends PostingsFormat {
 
   // Increment version to change it
   final static int VERSION_START = 0;
-  final static int VERSION_CURRENT = VERSION_START;
+  final static int VERSION_IMPACT_SKIP_DATA = 1;
+  final static int VERSION_CURRENT = VERSION_IMPACT_SKIP_DATA;
 
   private final int minTermBlockSize;
   private final int maxTermBlockSize;
@@ -407,8 +408,7 @@ public final class Lucene50PostingsFormat extends PostingsFormat {
    *  maxBlockSize} passed to block terms dictionary.
    *  @see BlockTreeTermsWriter#BlockTreeTermsWriter(SegmentWriteState,PostingsWriterBase,int,int) */
   public Lucene50PostingsFormat(int minTermBlockSize, int maxTermBlockSize) {
-    //super("Lucene50");
-    super( CodecUtil.name + "50");
+    super("Lucene50");
     BlockTreeTermsWriter.validateSettings(minTermBlockSize, maxTermBlockSize);
     this.minTermBlockSize = minTermBlockSize;
     this.maxTermBlockSize = maxTermBlockSize;

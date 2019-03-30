@@ -17,6 +17,8 @@
 package org.apache.lucene.search;
 
 
+import org.apache.lucene.index.BaseTermsEnum;
+import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
@@ -43,7 +45,7 @@ import java.util.Arrays;
  * {@link BytesRef#compareTo}.  Each term in the enumeration is
  * greater than all that precede it.</p>
  */
-public final class FuzzyTermsEnum extends TermsEnum {
+public final class FuzzyTermsEnum extends BaseTermsEnum {
 
   // NOTE: we can't subclass FilteredTermsEnum here because we need to sometimes change actualEnum:
   private TermsEnum actualEnum;
@@ -270,6 +272,11 @@ public final class FuzzyTermsEnum extends TermsEnum {
   @Override
   public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
     return actualEnum.postings(reuse, flags);
+  }
+  
+  @Override
+  public ImpactsEnum impacts(int flags) throws IOException {
+    return actualEnum.impacts(flags);
   }
   
   @Override

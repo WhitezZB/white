@@ -19,6 +19,7 @@ public class IndexBuilderTest {
 		WhiteSchema schema = WhiteSchema.LOCAL(new Path("D:\\test\\lucene\\schema.xml"));
 		Directory dir = FSDirectory.open(Paths.get("D:\\test\\lucene\\luceneIndex"));
 		IndexWriterConfig iwc = new IndexWriterConfig(schema.getIndexAnalyzer());
+		iwc.setUseCompoundFile(false);
         IndexWriter writer = new IndexWriter(dir, iwc);
         
         Map<String,Object> m1 = new HashMap<String,Object>();

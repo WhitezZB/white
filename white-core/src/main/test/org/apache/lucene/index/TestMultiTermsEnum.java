@@ -27,17 +27,6 @@ import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.CodecReader;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.FilterCodecReader;
-import org.apache.lucene.index.FilteredTermsEnum;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
@@ -148,26 +137,22 @@ public class TestMultiTermsEnum extends LuceneTestCase {
 
         @Override
         public long size() throws IOException {
-          // Docs say we can return -1 if we don't know.
-          return -1;
+          throw new UnsupportedOperationException();
         }
 
         @Override
         public long getSumTotalTermFreq() throws IOException {
-          // Docs say we can return -1 if we don't know.
-          return -1;
+          throw new UnsupportedOperationException();
         }
 
         @Override
         public long getSumDocFreq() throws IOException {
-          // Docs say we can return -1 if we don't know.
-          return -1;
+          throw new UnsupportedOperationException();
         }
 
         @Override
         public int getDocCount() throws IOException {
-          // Docs say we can return -1 if we don't know.
-          return -1;
+          throw new UnsupportedOperationException();
         }
 
         @Override

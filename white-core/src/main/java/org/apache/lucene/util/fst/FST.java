@@ -26,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
@@ -54,7 +53,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 /** Represents an finite state machine (FST), using a
  *  compact byte[] format.
  *  <p> The format is similar to what's used by Morfologik
- *  (http://sourceforge.net/projects/morfologik).
+ *  (https://github.com/morfologik/morfologik-stemming).
  *  
  *  <p> See the {@link org.apache.lucene.util.fst package
  *      documentation} for some simple examples.
@@ -103,27 +102,8 @@ public final class FST<T> implements Accountable {
 
   // Increment version to change it
   private static final String FILE_FORMAT_NAME = "FST";
-  private static final int VERSION_START = 0;
-
-  /** Changed numBytesPerArc for array'd case from byte to int. */
-  private static final int VERSION_INT_NUM_BYTES_PER_ARC = 1;
-
-  /** Write BYTE2 labels as 2-byte short, not vInt. */
-  private static final int VERSION_SHORT_BYTE2_LABELS = 2;
-
-  /** Added optional packed format. */
-  private static final int VERSION_PACKED = 3;
-
-  /** Changed from int to vInt for encoding arc targets. 
-   *  Also changed maxBytesPerArc from int to vInt in the array case. */
-  private static final int VERSION_VINT_TARGET = 4;
-
-  /** Don't store arcWithOutputCount anymore */
-  private static final int VERSION_NO_NODE_ARC_COUNTS = 5;
-
-  private static final int VERSION_PACKED_REMOVED = 6;
-
-  private static final int VERSION_CURRENT = VERSION_PACKED_REMOVED;
+  private static final int VERSION_START = 6;
+  private static final int VERSION_CURRENT = VERSION_START;
 
   // Never serialized; just used to represent the virtual
   // final node w/ no arcs:
@@ -147,8 +127,7 @@ public final class FST<T> implements Accountable {
    *  GB then bytesArray is set instead. */
   final BytesStore bytes;
 
-  /** Used at read time when the FST fits into a single byte[]. */
-  final byte[] bytesArray;
+  private final FSTStore fstStore;
 
   private long startNode = -1;
 
@@ -258,7 +237,7 @@ public final class FST<T> implements Accountable {
     this.inputType = inputType;
     this.outputs = outputs;
     version = VERSION_CURRENT;
-    bytesArray = null;
+    fstStore = null;
     bytes = new BytesStore(bytesPageBits);
     // pad: ensure no node gets address 0 which is reserved to mean
     // the stop state w/ no arcs
@@ -271,26 +250,19 @@ public final class FST<T> implements Accountable {
 
   /** Load a previously saved FST. */
   public FST(DataInput in, Outputs<T> outputs) throws IOException {
-    this(in, outputs, DEFAULT_MAX_BLOCK_BITS);
+    this(in, outputs, new OnHeapFSTStore(DEFAULT_MAX_BLOCK_BITS));
   }
 
   /** Load a previously saved FST; maxBlockBits allows you to
    *  control the size of the byte[] pages used to hold the FST bytes. */
-  public FST(DataInput in, Outputs<T> outputs, int maxBlockBits) throws IOException {
+  public FST(DataInput in, Outputs<T> outputs, FSTStore fstStore) throws IOException {
+    bytes = null;
+    this.fstStore = fstStore;
     this.outputs = outputs;
-
-    if (maxBlockBits < 1 || maxBlockBits > 30) {
-      throw new IllegalArgumentException("maxBlockBits should be 1 .. 30; got " + maxBlockBits);
-    }
 
     // NOTE: only reads most recent format; we don't have
     // back-compat promise for FSTs (they are experimental):
-    version = CodecUtil.checkHeader(in, FILE_FORMAT_NAME, VERSION_PACKED, VERSION_CURRENT);
-    if (version < VERSION_PACKED_REMOVED) {
-      if (in.readByte() == 1) {
-        throw new CorruptIndexException("Cannot read packed FSTs anymore", in);
-      }
-    }
+    version = CodecUtil.checkHeader(in, FILE_FORMAT_NAME, VERSION_START, VERSION_CURRENT);
     if (in.readByte() == 1) {
       // accepts empty string
       // 1 KB blocks:
@@ -325,24 +297,9 @@ public final class FST<T> implements Accountable {
       throw new IllegalStateException("invalid input type " + t);
     }
     startNode = in.readVLong();
-    if (version < VERSION_NO_NODE_ARC_COUNTS) {
-      in.readVLong();
-      in.readVLong();
-      in.readVLong();
-    }
 
     long numBytes = in.readVLong();
-    if (numBytes > 1 << maxBlockBits) {
-      // FST is big: we need multiple pages
-      bytes = new BytesStore(in, numBytes, 1<<maxBlockBits);
-      bytesArray = null;
-    } else {
-      // FST fits into a single block: use ByteArrayBytesStoreReader for less overhead
-      bytes = null;
-      bytesArray = new byte[(int) numBytes];
-      in.readBytes(bytesArray, 0, bytesArray.length);
-    }
-    
+    this.fstStore.init(in, numBytes);
     cacheRootArcs();
   }
 
@@ -374,11 +331,12 @@ public final class FST<T> implements Accountable {
   @Override
   public long ramBytesUsed() {
     long size = BASE_RAM_BYTES_USED;
-    if (bytesArray != null) {
-      size += bytesArray.length;
+    if (this.fstStore != null) {
+      size += this.fstStore.ramBytesUsed();
     } else {
       size += bytes.ramBytesUsed();
     }
+
     size += cachedArcsBytesUsed;
     return size;
   }
@@ -497,9 +455,8 @@ public final class FST<T> implements Accountable {
       out.writeVLong(numBytes);
       bytes.writeTo(out);
     } else {
-      assert bytesArray != null;
-      out.writeVLong(bytesArray.length);
-      out.writeBytes(bytesArray, 0, bytesArray.length);
+      assert fstStore != null;
+      fstStore.writeTo(out);
     }
   }
   
@@ -768,11 +725,7 @@ public final class FST<T> implements Accountable {
       if (b == ARCS_AS_FIXED_ARRAY) {
         // array: jump straight to end
         arc.numArcs = in.readVInt();
-        if (version >= VERSION_VINT_TARGET) {
-          arc.bytesPerArc = in.readVInt();
-        } else {
-          arc.bytesPerArc = in.readInt();
-        }
+        arc.bytesPerArc = in.readVInt();
         //System.out.println("  array numArcs=" + arc.numArcs + " bpa=" + arc.bytesPerArc);
         arc.posArcsStart = in.getPosition();
         arc.arcIdx = arc.numArcs - 2;
@@ -808,13 +761,7 @@ public final class FST<T> implements Accountable {
   }
 
   private long readUnpackedNodeTarget(BytesReader in) throws IOException {
-    long target;
-    if (version < VERSION_VINT_TARGET) {
-      target = in.readInt();
-    } else {
-      target = in.readVLong();
-    }
-    return target;
+    return in.readVLong();
   }
 
   /**
@@ -857,11 +804,7 @@ public final class FST<T> implements Accountable {
       //System.out.println("  fixedArray");
       // this is first arc in a fixed-array
       arc.numArcs = in.readVInt();
-      if (version >= VERSION_VINT_TARGET) {
-        arc.bytesPerArc = in.readVInt();
-      } else {
-        arc.bytesPerArc = in.readInt();
-      }
+      arc.bytesPerArc = in.readVInt();
       arc.arcIdx = -1;
       arc.nextArc = arc.posArcsStart = in.getPosition();
       //System.out.println("  bytesPer=" + arc.bytesPerArc + " numArcs=" + arc.numArcs + " arcsStart=" + pos);
@@ -920,11 +863,7 @@ public final class FST<T> implements Accountable {
         in.readVInt();
 
         // Skip bytesPerArc:
-        if (version >= VERSION_VINT_TARGET) {
-          in.readVInt();
-        } else {
-          in.readInt();
-        }
+        in.readVInt();
       } else {
         in.setPosition(pos);
       }
@@ -1092,11 +1031,7 @@ public final class FST<T> implements Accountable {
     if (in.readByte() == ARCS_AS_FIXED_ARRAY) {
       // Arcs are full array; do binary search:
       arc.numArcs = in.readVInt();
-      if (version >= VERSION_VINT_TARGET) {
-        arc.bytesPerArc = in.readVInt();
-      } else {
-        arc.bytesPerArc = in.readInt();
-      }
+      arc.bytesPerArc = in.readVInt();
       arc.posArcsStart = in.getPosition();
       int low = 0;
       int high = arc.numArcs-1;
@@ -1191,8 +1126,8 @@ public final class FST<T> implements Accountable {
   /** Returns a {@link BytesReader} for this FST, positioned at
    *  position 0. */
   public BytesReader getBytesReader() {
-    if (bytesArray != null) {
-      return new ReverseBytesReader(bytesArray);
+    if (this.fstStore != null) {
+      return this.fstStore.getReverseBytesReader();
     } else {
       return bytes.getReverseReader();
     }

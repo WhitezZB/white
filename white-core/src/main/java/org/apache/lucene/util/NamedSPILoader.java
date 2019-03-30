@@ -23,9 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.LinkedHashMap;
 import java.util.Set;
-
-import org.apache.lucene.codecs.CodecUtil;
-
 import java.util.ServiceConfigurationError;
 
 /**
@@ -112,13 +109,9 @@ public final class NamedSPILoader<S extends NamedSPILoader.NamedSPI> implements 
   }
   
   public S lookup(String name) {
-	String finalName = name;
-	if(name.equals("Lucene50")) {
-		finalName = CodecUtil.name + "50";
-	}
-    final S service = services.get(finalName);
+    final S service = services.get(name);
     if (service != null) return service;
-    throw new IllegalArgumentException("An SPI class of type "+clazz.getName()+" with name '"+finalName+"' does not exist."+
+    throw new IllegalArgumentException("An SPI class of type "+clazz.getName()+" with name '"+name+"' does not exist."+
      "  You need to add the corresponding JAR file supporting this SPI to your classpath."+
      "  The current classpath supports the following names: "+availableServices());
   }

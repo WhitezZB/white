@@ -24,7 +24,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.lucene.codecs.FieldsConsumer;
+import org.apache.lucene.codecs.NormsProducer;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 
 final class FreqProxTermsWriter extends TermsHash {
@@ -40,36 +43,21 @@ final class FreqProxTermsWriter extends TermsHash {
       Map<Term,Integer> segDeletes = state.segUpdates.deleteTerms;
       List<Term> deleteTerms = new ArrayList<>(segDeletes.keySet());
       Collections.sort(deleteTerms);
-      String lastField = null;
-      TermsEnum termsEnum = null;
-      PostingsEnum postingsEnum = null;
+      FrozenBufferedUpdates.TermDocsIterator iterator = new FrozenBufferedUpdates.TermDocsIterator(fields, true);
       for(Term deleteTerm : deleteTerms) {
-        if (deleteTerm.field().equals(lastField) == false) {
-          lastField = deleteTerm.field();
-          Terms terms = fields.terms(lastField);
-          if (terms != null) {
-            termsEnum = terms.iterator();
-          } else {
-            termsEnum = null;
-          }
-        }
-
-        if (termsEnum != null && termsEnum.seekExact(deleteTerm.bytes())) {
-          postingsEnum = termsEnum.postings(postingsEnum, 0);
+        DocIdSetIterator postings = iterator.nextTerm(deleteTerm.field(), deleteTerm.bytes());
+        if (postings != null ) {
           int delDocLimit = segDeletes.get(deleteTerm);
           assert delDocLimit < PostingsEnum.NO_MORE_DOCS;
-          while (true) {
-            int doc = postingsEnum.nextDoc();
-            if (doc < delDocLimit) {
-              if (state.liveDocs == null) {
-                state.liveDocs = state.segmentInfo.getCodec().liveDocsFormat().newLiveDocs(state.segmentInfo.maxDoc());
-              }
-              if (state.liveDocs.get(doc)) {
-                state.delCountOnFlush++;
-                state.liveDocs.clear(doc);
-              }
-            } else {
-              break;
+          int doc;
+          while ((doc = postings.nextDoc()) < delDocLimit) {
+            if (state.liveDocs == null) {
+              state.liveDocs = new FixedBitSet(state.segmentInfo.maxDoc());
+              state.liveDocs.set(0, state.segmentInfo.maxDoc());
+            }
+            if (state.liveDocs.get(doc)) {
+              state.delCountOnFlush++;
+              state.liveDocs.clear(doc);
             }
           }
         }
@@ -78,8 +66,9 @@ final class FreqProxTermsWriter extends TermsHash {
   }
 
   @Override
-  public void flush(Map<String,TermsHashPerField> fieldsToFlush, final SegmentWriteState state, Sorter.DocMap sortMap) throws IOException {
-    super.flush(fieldsToFlush, state, sortMap);
+  public void flush(Map<String,TermsHashPerField> fieldsToFlush, final SegmentWriteState state,
+      Sorter.DocMap sortMap, NormsProducer norms) throws IOException {
+    super.flush(fieldsToFlush, state, sortMap, norms);
 
     // Gather all fields that saw any postings:
     List<FreqProxTermsWriterPerField> allFields = new ArrayList<>();
@@ -105,7 +94,7 @@ final class FreqProxTermsWriter extends TermsHash {
     FieldsConsumer consumer = state.segmentInfo.getCodec().postingsFormat().fieldsConsumer(state);
     boolean success = false;
     try {
-      consumer.write(fields);
+      consumer.write(fields, norms);
       success = true;
     } finally {
       if (success) {

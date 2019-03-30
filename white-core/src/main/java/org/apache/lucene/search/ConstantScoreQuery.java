@@ -87,11 +87,11 @@ public final class ConstantScoreQuery extends Query {
     private LeafCollector wrapCollector(LeafCollector collector) {
       return new FilterLeafCollector(collector) {
         @Override
-        public void setScorer(Scorer scorer) throws IOException {
+        public void setScorer(Scorable scorer) throws IOException {
           // we must wrap again here, but using the scorer passed in as parameter:
-          in.setScorer(new FilterScorer(scorer) {
+          in.setScorer(new FilterScorable(scorer) {
             @Override
-            public float score() throws IOException {
+            public float score() {
               return theScore;
             }
           });
@@ -106,9 +106,9 @@ public final class ConstantScoreQuery extends Query {
   }
 
   @Override
-  public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-    final Weight innerWeight = searcher.createWeight(query, false, 1f);
-    if (needsScores) {
+  public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+    final Weight innerWeight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+    if (scoreMode.needsScores()) {
       return new ConstantScoreWeight(this, boost) {
 
         @Override
@@ -137,8 +137,12 @@ public final class ConstantScoreQuery extends Query {
                   return score;
                 }
                 @Override
-                public Collection<ChildScorer> getChildren() {
-                  return Collections.singleton(new ChildScorer(innerScorer, "constant"));
+                public float getMaxScore(int upTo) throws IOException {
+                  return score;
+                }
+                @Override
+                public Collection<ChildScorable> getChildren() {
+                  return Collections.singleton(new ChildScorable(innerScorer, "constant"));
                 }
               };
             }
@@ -148,6 +152,11 @@ public final class ConstantScoreQuery extends Query {
               return innerScorerSupplier.cost();
             }
           };
+        }
+
+        @Override
+        public Matches matches(LeafReaderContext context, int doc) throws IOException {
+          return innerWeight.matches(context, doc);
         }
 
         @Override
