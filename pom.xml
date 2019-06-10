@@ -18,6 +18,7 @@
         <module>white-utils</module>
 		<module>white-core</module>
     <module>whilte-index</module>
+    <module>white-vector</module>
   </modules>
 
 	<build>
