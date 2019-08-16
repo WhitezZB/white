@@ -18,6 +18,8 @@
         <module>white-utils</module>
 		<module>white-core</module>
     <module>whilte-index</module>
+    <module>white-parquet</module>
+    <module>white-Inverted-Index</module>
   </modules>
 
 	<build>

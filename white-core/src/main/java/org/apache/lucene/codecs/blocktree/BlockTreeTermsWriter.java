@@ -317,7 +317,6 @@ public final class BlockTreeTermsWriter extends FieldsConsumer {
   @Override
   public void write(Fields fields) throws IOException {
     //if (DEBUG) System.out.println("\nBTTW.write seg=" + segment);
-
     String lastField = null;
     for(String field : fields) {
       assert lastField == null || lastField.compareTo(field) < 0;
