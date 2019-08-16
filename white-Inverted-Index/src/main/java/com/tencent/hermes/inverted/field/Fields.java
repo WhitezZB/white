@@ -1,8 +1,10 @@
-package com.tencent.hermes.inverted.index;
+package com.tencent.hermes.inverted.field;
 
 
 import java.io.IOException;
 import java.util.Iterator;
+
+import com.tencent.hermes.inverted.index.Terms;
 
 /** Flex API for access to fields and terms
  *  @lucene.experimental */

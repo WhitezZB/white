@@ -48,7 +48,7 @@ public class HdfsInOutTests {
 		}
 		int bitRequired;
 		Arrays.sort(data);
-		//System.out.println(Arrays.toString(data));
+		System.out.println(Arrays.toString(data));
 		bitRequired = DirectWriter.unsignedBitsRequired(data[data.length -1]);
 		System.out.println(bitRequired);
 		long minVal = data[0];
@@ -67,7 +67,7 @@ public class HdfsInOutTests {
 			delta[i] = dataNew[i] - dataNew[i -1];
 			max  = max < delta[i] ? delta[i] : max;
 		}
-		System.out.println(Arrays.toString(delta));		
+		//System.out.println(Arrays.toString(delta));		
 		bitRequired = DirectWriter.unsignedBitsRequired(max);
 		System.out.println(bitRequired);
 		
@@ -100,7 +100,7 @@ public class HdfsInOutTests {
 			value += longValues.get(i);
 			read[i] = value; 
 		}
-		//System.out.println(Arrays.toString(read));	
+		System.out.println(Arrays.toString(read));	
 		assert Arrays.equals(data, read);
 		input.skipBytes(valueLength);
 		long pointer = input.readLong();
