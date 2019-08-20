@@ -1,5 +1,7 @@
 package org.white.white_Inverted_Index;
 
+import java.util.Arrays;
+
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
@@ -33,6 +35,8 @@ public class AppTest
      */
     public void testApp()
     {
-        assertTrue( true );
+        String a = "a^a";
+        String[] value = a.split("\\^");
+        System.out.println(Arrays.toString(value));
     }
 }
