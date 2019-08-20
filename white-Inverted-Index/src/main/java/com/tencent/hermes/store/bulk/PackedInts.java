@@ -515,5 +515,6 @@ public class PackedInts {
   public static long maxValue(int bitsPerValue) {
     return bitsPerValue == 64 ? Long.MAX_VALUE : ~(~0L << bitsPerValue);
   }
+  
 
 }
