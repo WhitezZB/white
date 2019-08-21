@@ -4,6 +4,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.LongValues;
+
 import com.tencent.hermes.store.LFSHermesInput.SlicedIndexInput;
 
 public class FSTestDirectorWriterAndReader {

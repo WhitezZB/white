@@ -23,10 +23,11 @@ import java.util.Collections;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import org.apache.lucene.store.BufferedChecksum;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+
 import com.tencent.hermes.store.HermesOutput;
-import com.tencent.hermes.store.utils.Accountable;
-import com.tencent.hermes.store.utils.Accountables;
-import com.tencent.hermes.store.utils.BufferedChecksum;
 
 
 /**

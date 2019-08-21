@@ -30,7 +30,7 @@ public class BlockCacheRam extends BlockCache{
 		StartCache(1024, BLOCK_SIZE_OFFSET);
 	}
 
-	public static void StartCache(int size, int BLOCK_SIZE_OFFSET) {
+	private static void StartCache(int size, int BLOCK_SIZE_OFFSET) {
 	
 		BlockCacheRam.BLOCK_SIZE_OFFSET = BLOCK_SIZE_OFFSET;
 		BlockCacheRam.BLOCK_SIZE = 1 << BLOCK_SIZE_OFFSET;

@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
+import org.apache.lucene.store.RandomAccessInput;
+
 /**
  * Base IndexInput implementation that uses an array
  * of ByteBuffers to represent a file.

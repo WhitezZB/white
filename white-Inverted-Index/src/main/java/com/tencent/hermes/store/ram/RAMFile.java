@@ -20,7 +20,8 @@ package com.tencent.hermes.store.ram;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import com.tencent.hermes.store.utils.Accountable;
+import org.apache.lucene.util.Accountable;
+
 
 
 /** 

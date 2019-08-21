@@ -7,22 +7,23 @@ import java.util.Random;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.LongValues;
 
+import com.tencent.hermes.TestCaseBase;
 import com.tencent.hermes.store.hdfs.HdfsHermesInput;
 import com.tencent.hermes.store.hdfs.HdfsHermesOutput;
 import com.tencent.hermes.store.ram.RAMOutputStream;
 
-import junit.framework.TestCase;
 
-public class HdfsInOutTests extends TestCase{
-	static {
-		System.setProperty("hadoop.home.dir", "C:\\hadoop-common-2.7.1");
-	}
+public class HdfsInOutTests extends TestCaseBase{
 	
+	public static String TEST_DIR = "D:/test/hermesio/hdfs";
+ 
 	
 	public static void testHdfsIo() throws Exception {
 		HdfsHermesOutput houtput = new HdfsHermesOutput(new Configuration(),
-				new Path("D:/test/hermesio/hdfs/data.hermes"));
+				new Path(TEST_DIR,"data.hermes"));
 		houtput.writeString("love china");
 		houtput.writeString("love tencent");
 		houtput.writeInt(10);
@@ -30,7 +31,7 @@ public class HdfsInOutTests extends TestCase{
 		houtput.close();
 		
 		HdfsHermesInput hinput = new HdfsHermesInput(new Configuration(), 
-				new Path("D:/test/hermesio/hdfs/data.hermes"), HdfsHermesOutput.CHUNK_SIZE);
+				new Path(TEST_DIR,"data.hermes"), HdfsHermesOutput.CHUNK_SIZE);
 		String s1 = hinput.readString();
 		String s2 = hinput.readString();
 		int a1 = hinput.readInt();

@@ -5,6 +5,8 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.lucene.store.DataOutput;
+
 import com.tencent.hermes.store.bulk.BulkOperation;
 import com.tencent.hermes.store.bulk.PackedInts;
 

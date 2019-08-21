@@ -4,6 +4,8 @@ package com.tencent.hermes.store;
 import java.io.Closeable;
 import java.io.IOException;
 
+import org.apache.lucene.store.DataOutput;
+
 /******************
  * 
  * @author kaynewu

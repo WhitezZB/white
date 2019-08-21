@@ -20,6 +20,9 @@ package com.tencent.hermes.store;
 import java.io.Closeable;
 import java.io.IOException;
 
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.RandomAccessInput;
+
 
 /** 
  * Abstract base class for input from a file in a {@link Directory}.  A

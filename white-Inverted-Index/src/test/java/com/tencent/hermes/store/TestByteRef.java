@@ -1,8 +1,9 @@
 package com.tencent.hermes.store;
 
 
+import org.apache.lucene.util.BytesRef;
+
 import com.tencent.hermes.store.utils.BytesRefUtils;
-import com.tencent.hermes.store.utils.BytesRef;
 
 import junit.framework.TestCase;
 

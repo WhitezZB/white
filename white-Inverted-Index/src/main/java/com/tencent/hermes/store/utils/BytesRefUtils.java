@@ -1,5 +1,7 @@
 package com.tencent.hermes.store.utils;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRefBuilder;
 
 /****************
  * 
